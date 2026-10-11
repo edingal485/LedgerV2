@@ -324,6 +324,9 @@
   .pill-income{ background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
   .pill-expense{ background: color-mix(in srgb, var(--critical) 13%, transparent); color: var(--critical); }
   .pill-savings{ background: var(--accent-soft); color: var(--accent); }
+  .pill-transfer{ background: var(--border); color: var(--ink-secondary); }
+  .xfer-totals{ display:flex; gap:18px; flex-wrap:wrap; margin:2px 0 4px; font-size:13px; color:var(--ink-secondary); }
+  .xfer-totals b{ color:var(--ink); font-variant-numeric:tabular-nums; }
   .amt{ font-variant-numeric: tabular-nums; font-weight:700; }
   .row-actions{ display:flex; gap:2px; justify-content:flex-end; }
   .row-actions button{ background:none; border:none; cursor:pointer; padding:5px; border-radius:6px; color:var(--ink-muted); display:flex; }
@@ -442,12 +445,12 @@
       </div>
     </div>
 
-    <button class="sync-pill" id="syncPill" data-status="idle" type="button" title="Click to sync now">
+    <button class="sync-pill" id="syncPill" data-status="idle" type="button" title="Click to save now">
       <span class="dot"></span><span id="syncPillText">Loading…</span>
     </button>
 
     <button class="icon-btn" id="exportBackupBtn" title="Download a backup of your data as a file" aria-label="Export backup">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 15V3m0 12l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 15V3m0 0L8 7m4-4l4 4M5 21h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
     <button class="icon-btn" id="importBackupBtn" title="Restore your data from a backup file (replaces what's saved in this browser)" aria-label="Import backup">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l4-4m-4 4l-4-4M5 21h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -630,6 +633,30 @@
       </div>
     </section>
 
+    <section class="card" id="transfersCard">
+      <div class="section-head">
+        <div>
+          <h2>Internal transfers</h2>
+          <div class="section-sub" id="xferSub">This month</div>
+        </div>
+      </div>
+      <div class="xfer-totals" id="xferTotals"></div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th><th>Direction</th><th>Note</th><th class="num">Amount</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="xferBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="xferEmpty" style="display:none;">
+        No internal transfers this month.
+        <div class="fixed-cost-hint">Money moved between your own accounts doesn't count as income or spending. Set a transaction's type to "Transfer" (in the Add/Edit form or when importing a statement), or click the ⇄ button on a row in the Transactions table, to have it listed here instead — it's left out of the overview stats, graphs and budgets automatically.</div>
+      </div>
+    </section>
+
     <section class="card">
       <div class="section-head">
         <div>
@@ -668,6 +695,7 @@
         <button type="button" data-type="income">Income</button>
         <button type="button" data-type="expense">Expense</button>
         <button type="button" data-type="savings">Savings</button>
+        <button type="button" data-type="transfer" title="Money moved between your own accounts — not income or spending">Transfer</button>
       </div>
     </div>
 
@@ -695,7 +723,7 @@
       <textarea id="txNote" placeholder="e.g. Weekly shop at the market"></textarea>
     </div>
 
-    <div class="field">
+    <div class="field" id="txExcludedField">
       <label style="display:flex;align-items:center;gap:7px;text-transform:none;font-weight:500;font-size:13px;color:var(--ink);letter-spacing:normal;">
         <input type="checkbox" id="txExcluded" style="width:auto;">
         Exclude from overview &amp; graphs
@@ -703,7 +731,7 @@
       <div class="field-hint">For a one-off that would skew your normal totals — e.g. a mortgage renewal fee. It'll stay in your transaction list either way.</div>
     </div>
 
-    <div class="field">
+    <div class="field" id="txFixedField">
       <label style="display:flex;align-items:center;gap:7px;text-transform:none;font-weight:500;font-size:13px;color:var(--ink);letter-spacing:normal;">
         <input type="checkbox" id="txFixedCost" style="width:auto;">
         Fixed cost
@@ -852,6 +880,7 @@
   var MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   var MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   var PENCIL_SVG = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var XFER_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 8h15m0 0l-4-4m4 4l-4 4M20 16H5m0 0l4-4m-4 4l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   var RECEIPT_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M6 2.5h12v19l-2.3-1.4L13.7 21l-2.3-1.4L9 21l-2.3-1.4L4.7 21V5A2.5 2.5 0 016 2.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8.3 8h7.4M8.3 11.2h7.4M8.3 14.4h4.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 
   function catByKey(key){
@@ -939,6 +968,15 @@
       if (mid >= lo && mid <= hi && gap > bestGap) { bestGap = gap; bestAt = mid; }
     }
     if (bestGap < 40 || bestAt === null) return [items];
+    // A table header row — "Date" on the left and a paid-in / paid-out / balance cell on the
+    // right, on the SAME line — means both sides of the gap are columns of ONE wide table
+    // (description far left, amounts far right, as on HSBC statements), not two unrelated text
+    // columns, so keep the page whole.
+    var HEAD_RIGHT = /\b(paid\s*(in|out)|money\s*(in|out)|balance|debit|credit|withdrawn|amount)\b/i;
+    var dateYs = items.filter(function (it) { return /^date\b/i.test(it.str.trim()); }).map(function (it) { return Math.round(it.transform[5]); });
+    if (dateYs.length && items.some(function (it) {
+      return it.transform[4] >= bestAt && HEAD_RIGHT.test(it.str) && dateYs.some(function (y) { return Math.abs(y - Math.round(it.transform[5])) <= 2; });
+    })) return [items];
     var left = items.filter(function (it) { return it.transform[4] < bestAt; });
     var right = items.filter(function (it) { return it.transform[4] >= bestAt; });
     if (left.length < 5 || right.length < 5) return [items];
@@ -1090,9 +1128,40 @@
   // last real transaction) — seeing one turns table mode back off so later unrelated bullet
   // points (T&Cs, credit-limit bullets) with incidental £ amounts don't get read as transactions.
   var STMT_TABLE_END_PREFIXES = ["your new balance", "minimum payment", "using your card", "interest (variable)", "overdraft arrangements", "statement abbreviations"];
-  function stmtIsTableEndRow(row){ return stmtStartsWithAny(row.text, STMT_TABLE_END_PREFIXES); }
+  // A few PDFs (HSBC's, for one) print letter-spaced text — "Informatio n abo ut the Financial S e
+  // rvice s" — so these are also checked against the row's text with every space removed.
+  var STMT_TABLE_END_SQUASHED = ["informationaboutthefinancialservices"];
+  function stmtIsTableEndRow(row){
+    if (stmtStartsWithAny(row.text, STMT_TABLE_END_PREFIXES)) return true;
+    var squashed = row.text.replace(/\s+/g, "").toLowerCase();
+    return STMT_TABLE_END_SQUASHED.some(function(p){ return squashed.indexOf(p) === 0; });
+  }
+  // Account holder's name, read from the "Account Name" row on the statement (HSBC and several
+  // others print it above the table). Returns { first, last } in lower case, or null.
+  function stmtFindHolderName(rows){
+    for (var i = 0; i < rows.length - 1; i++){
+      if (rows[i].boundary) continue;
+      var head = rows[i].text.replace(/\s+/g, "").toLowerCase();
+      if (head.indexOf("accountname") !== 0) continue;
+      for (var j = i + 1; j < rows.length && j <= i + 2; j++){
+        if (rows[j].boundary || !rows[j].items.length) continue;
+        var name = rows[j].items[0].str.replace(/\b(mr|mrs|miss|ms|mx|dr|prof|sir|lady)\b\.?/gi, " ").replace(/[^A-Za-z' \-]/g, " ").trim().split(/\s+/).filter(Boolean);
+        if (name.length >= 2) return { first: name[0].toLowerCase(), last: name[name.length - 1].toLowerCase() };
+        return null;
+      }
+    }
+    return null;
+  }
+  // True when a description names the account holder themselves ("A Adams", "ADAMS A",
+  // "Ashleigh Adams") — a payment to/from yourself is a move between your own accounts.
+  function stmtMentionsHolder(note, holder){
+    if (!holder) return false;
+    var words = (note||"").toLowerCase().replace(/[^a-z' \-]/g, " ").split(/\s+/).filter(Boolean);
+    if (words.indexOf(holder.last) === -1) return false;
+    return words.some(function(w){ return w === holder.first || (w.length === 1 && w === holder.first.charAt(0)); });
+  }
   var STMT_TOTAL_ROW_RE = /^totals?$/i;
-  var STMT_BALANCE_CARRY_RE = /^(brought forward|balance brought forward|opening balance|balance from (your )?previous statement|previous balance)$/i;
+  var STMT_BALANCE_CARRY_RE = /^(brought forward|balance brought forward|balance carried forward|carried forward|opening balance|balance from (your )?previous statement|previous balance)$/i;
   // Subsection subtotal/recap labels that carry an amount but are not themselves a transaction.
   var STMT_NON_TRANSACTION_PREFIXES = ["transactions, interest and charges", "promotional transactions", "interest and charges", "your previous balance"];
 
@@ -1139,6 +1208,8 @@
     var refDate = stmtFindReferenceDate(rows);
     var out = [];
     var columns = null, dateColMaxX = null, tableActive = false;
+    var hasTypeColumn = false; // HSBC-style "Payment type and details" column (CR, VIS, OBP, )))…)
+    var holder = stmtFindHolderName(rows);
     var currentDateIso = null, pending = [];
     // The transaction most recently pushed to `out`, kept around ONLY so a dateless,
     // amount-less row immediately following it can be recognised as a trailing wrap of ITS
@@ -1148,7 +1219,7 @@
     // a new dated row starting, a section boundary, or `pending` already being used to build up
     // the NEXT transaction's description.
     var lastTx = null;
-    function resetSection(){ columns = null; dateColMaxX = null; tableActive = false; currentDateIso = null; pending = []; lastTx = null; }
+    function resetSection(){ columns = null; dateColMaxX = null; tableActive = false; hasTypeColumn = false; currentDateIso = null; pending = []; lastTx = null; }
 
     rows.forEach(function (row) {
       if (row.boundary) { if (row.reset) resetSection(); else pending = []; return; }
@@ -1156,6 +1227,7 @@
       if (stmtIsHeaderRow(row)) {
         var cols = stmtDetectColumnsForRow(row);
         if (cols.some(function(c){ return c.type==="out" || c.type==="in"; })) columns = cols;
+        hasTypeColumn = row.text.replace(/\s+/g, "").toLowerCase().indexOf("paymenttype") > -1;
         var dateItem = row.items.find(function(it){ return /^date/i.test(it.str.trim()); });
         var descItem = row.items.find(function(it){ return /^(description|transaction|details)/i.test(it.str.trim()); });
         if (dateItem && descItem) dateColMaxX = (dateItem.x + descItem.x) / 2;
@@ -1186,6 +1258,21 @@
         }
         descItems.push(it);
       });
+      // "Payment type and details" statements: the first line of every transaction starts with a
+      // short type code (CR, VIS, OBP, BP, DD, ")))" for contactless…) sitting in its own column
+      // just left of the description. Drop it from the description, and remember it was there:
+      // it means this row is the FIRST line of a new transaction, never a wrap of the last one.
+      var startedWithTypeCode = false;
+      if (hasTypeColumn){
+        var nonBlank = descItems.filter(function(it){ return it.str.trim(); });
+        if (nonBlank.length >= 2 && nonBlank[0].str.trim().length <= 4){
+          var gapToNext = nonBlank[1].x - (nonBlank[0].x + (nonBlank[0].width || 0));
+          if (gapToNext >= 8){
+            startedWithTypeCode = true;
+            descItems = descItems.filter(function(it){ return it !== nonBlank[0]; });
+          }
+        }
+      }
       // A row that carries its own date is always the start of a fresh transaction (even if,
       // for a multi-line entry, that transaction's amount hasn't appeared yet) — so any
       // trailing-continuation candidate from before is no longer eligible.
@@ -1229,7 +1316,7 @@
         // T&Cs paragraph reads as a full sentence, so anything long or wordy is excluded too —
         // it falls through to `pending` instead, which gets discarded at the very next section
         // boundary or header rather than permanently corrupting a real transaction's note.
-        var startsNewTx = STMT_TX_START_LABELS_RE.test(fragment);
+        var startsNewTx = startedWithTypeCode || STMT_TX_START_LABELS_RE.test(fragment);
         var looksLikeSentenceTrail = fragment.length > 40 || fragment.split(/\s+/).length > 6;
         if (fragment && !dateItems.length && lastTx && !pending.length && !startsNewTx && !looksLikeSentenceTrail){
           lastTx.note = (lastTx.note + " " + fragment).replace(/\s+/g, " ").trim();
@@ -1251,6 +1338,7 @@
       if (!description) return;
 
       var tx = { date: currentDateIso, note: description, amount: Math.round(cls.amount * 100) / 100, type: cls.type };
+      if (stmtMentionsHolder(description, holder)) tx.ownName = true;
       out.push(tx);
       lastTx = tx;
     });
@@ -1482,7 +1570,14 @@
   }
   function updateTransaction(id, tx){
     var i = state.transactions.findIndex(function(t){ return t.id===id; });
-    if (i>-1){ tx.id = id; state.transactions[i] = tx; renderAll(); scheduleSave(); }
+    if (i>-1){
+      var old = state.transactions[i];
+      // Editing a transaction rebuilds it from the form, which doesn't carry its receipt —
+      // keep any attached receipt photo / item list rather than silently dropping them.
+      if (old.receiptImage && !tx.receiptImage) tx.receiptImage = old.receiptImage;
+      if (old.receiptItems && !tx.receiptItems) tx.receiptItems = old.receiptItems;
+      tx.id = id; state.transactions[i] = tx; renderAll(); scheduleSave();
+    }
   }
   // Deleting a transaction one-by-one also trims it out of a pending "undo import" batch (see
   // below), so the button's count stays accurate and disappears once every transaction from
@@ -1622,6 +1717,12 @@
     var cat = catByKey(t.category);
     return !!cat && isCreditCardCategoryLabel(cat.label);
   }
+  // An internal transfer is money moved between your OWN accounts. It has its own transaction
+  // type ("transfer", with transferDir "out"/"in" for which way it went), so every income /
+  // spending / savings total, chart and budget — all of which only look at their own types —
+  // ignores it automatically; it's listed in the Internal transfers section instead.
+  function isTransferTx(t){ return t.type === "transfer"; }
+  function transferDirOf(t){ return t.transferDir === "in" ? "in" : "out"; }
   // "Excluded" (category- or transaction-level) means: left out of the headline stat tiles,
   // the spending-by-category donut, and the 6-month trend chart — the "overview & graphs".
   // It does NOT affect a category's own budget progress or a goal's own saved total, since
@@ -1698,6 +1799,7 @@
     safeRender("fixed costs", renderFixedCosts);
     safeRender("category changes", renderCategoryChanges);
     safeRender("transactions", renderTransactions);
+    safeRender("transfers", renderTransfers);
     safeRender("credit card payments", renderCreditCardPayments);
   }
 
@@ -2262,11 +2364,12 @@
   function txGroupLabel(t){
     if (t.type==="expense" || t.type==="income") return catByKey(t.category).label;
     if (t.type==="savings") return goalLabel(t.goalId);
+    if (t.type==="transfer") return "Transfers";
     return "Other";
   }
   function renderFixedCosts(){
     var mk = monthKeyOf(state.viewDate);
-    var list = txForMonth(mk).filter(function(t){ return !!t.fixedCost; });
+    var list = txForMonth(mk).filter(function(t){ return !!t.fixedCost && !isTransferTx(t); });
     var sub = document.getElementById("fixedCostsSub");
     var monthStr = MONTH_NAMES[state.viewDate.getMonth()] + " " + state.viewDate.getFullYear();
     var total = list.reduce(function(s,t){ return s + (Number(t.amount)||0); }, 0);
@@ -2314,6 +2417,7 @@
   function categoryLabelTotals(mk){
     var totals = {};
     txForMonth(mk).forEach(function(t){
+      if (isTransferTx(t)) return; // internal transfers aren't a category of spending
       var label = txGroupLabel(t);
       totals[label] = (totals[label]||0) + (Number(t.amount)||0);
     });
@@ -2365,7 +2469,7 @@
     var list = state.filterAllTime ? state.transactions.slice() : txForMonth(mk);
     // Credit card payments live in their own section below (see renderCreditCardPayments)
     // rather than in this table.
-    list = list.filter(function(t){ return !isCreditCardPaymentTx(t); });
+    list = list.filter(function(t){ return !isCreditCardPaymentTx(t) && !isTransferTx(t); });
     if (state.filterType !== "all") list = list.filter(function(t){ return t.type===state.filterType; });
     if (state.filterSearch){
       var q = state.filterSearch.toLowerCase();
@@ -2404,12 +2508,16 @@
         + '<td style="text-align:center;"><input type="checkbox" class="tx-fixedcost-cb" data-id="'+t.id+'"'+(t.fixedCost?' checked':'')+' title="A recurring amount that stays the same each month"></td>'
         + '<td><div class="row-actions">'
         +   '<button type="button" class="tx-receipt-btn'+(t.receiptImage?' has-receipt':'')+'" data-receipt-tx="'+t.id+'" title="'+(t.receiptImage?"View receipt":"Attach receipt")+'">'+RECEIPT_SVG+'</button>'
+        +   ((t.type==="income" || t.type==="expense") ? '<button type="button" data-xfer-tx="'+t.id+'" title="Move to Internal transfers (money moved between your own accounts)">'+XFER_SVG+'</button>' : '')
         +   '<button type="button" data-edit-tx="'+t.id+'" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
         +   '<button type="button" data-del-tx="'+t.id+'" title="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v13a1 1 0 01-1 1H8a1 1 0 01-1-1V7h10z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
         + '</div></td>'
         + '</tr>';
     }).join("");
 
+    body.querySelectorAll("[data-xfer-tx]").forEach(function(b){
+      b.addEventListener("click", function(){ markAsTransfer(b.getAttribute("data-xfer-tx")); });
+    });
     body.querySelectorAll("[data-edit-tx]").forEach(function(b){
       b.addEventListener("click", function(){ openTxModal(b.getAttribute("data-edit-tx")); });
     });
@@ -2421,6 +2529,84 @@
     });
     body.querySelectorAll(".tx-fixedcost-cb").forEach(function(cb){
       cb.addEventListener("change", function(){ setTxFixedCost(cb.getAttribute("data-id"), cb.checked); });
+    });
+    body.querySelectorAll("[data-del-tx]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var id = b.getAttribute("data-del-tx");
+        if (b.getAttribute("data-armed")==="1"){ deleteTransaction(id); toast("Transaction deleted"); }
+        else {
+          b.setAttribute("data-armed","1");
+          b.style.color = "var(--critical)";
+          setTimeout(function(){ b.setAttribute("data-armed","0"); b.style.color=""; }, 3000);
+        }
+      });
+    });
+  }
+
+  /* ---------- internal transfers (own section, same month as everything else) ----------
+     Money moved between your own accounts. Each one is stored with a direction
+     ("out" of the account you're tracking, or "in"), so the section can show how much
+     moved each way — but none of it is ever counted as income, spending or savings. */
+  function markAsTransfer(id){
+    var t = state.transactions.find(function(x){ return x.id===id; });
+    if (!t || (t.type!=="income" && t.type!=="expense")) return;
+    t.transferDir = t.type==="income" ? "in" : "out";
+    t.type = "transfer";
+    t.excluded = false;
+    t.fixedCost = false;
+    delete t.category; // a transfer has no spending category; its direction is kept in transferDir
+    renderAll(); scheduleSave();
+    toast("Moved to Internal transfers");
+  }
+  function renderTransfers(){
+    var mk = monthKeyOf(state.viewDate);
+    var list = txForMonth(mk).filter(isTransferTx);
+    list.sort(function(a,b){ return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+
+    var monthStr = MONTH_NAMES[state.viewDate.getMonth()] + " " + state.viewDate.getFullYear();
+    var outTotal = 0, inTotal = 0;
+    list.forEach(function(t){
+      var a = Math.abs(Number(t.amount)||0);
+      if (transferDirOf(t)==="in") inTotal += a; else outTotal += a;
+    });
+    document.getElementById("xferSub").textContent = (list.length
+      ? list.length + " transfer" + (list.length===1?"":"s") + " in " + monthStr
+      : monthStr) + " · not counted as income or spending";
+    document.getElementById("xferTotals").innerHTML = list.length
+      ? '<span>Moved out <b>'+fmt(outTotal)+'</b></span><span>Moved in <b>'+fmt(inTotal)+'</b></span>'
+      : '';
+
+    var body = document.getElementById("xferBody");
+    var empty = document.getElementById("xferEmpty");
+    if (list.length === 0){
+      body.innerHTML = "";
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+
+    body.innerHTML = list.map(function(t){
+      var dir = transferDirOf(t);
+      var d = new Date(t.date+"T00:00:00");
+      var dateStr = d.toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" });
+      return '<tr>'
+        + '<td>'+dateStr+'</td>'
+        + '<td><span class="type-pill pill-transfer">'+(dir==="in" ? "Moved in" : "Moved out")+'</span></td>'
+        + '<td class="note-cell" title="'+escapeHtml(t.note||"")+'">'+escapeHtml(t.note||"—")+'</td>'
+        + '<td class="num amt">'+(dir==="in" ? "+" : "−")+fmt(Math.abs(Number(t.amount)||0))+'</td>'
+        + '<td><div class="row-actions">'
+        +   '<button type="button" class="tx-receipt-btn'+(t.receiptImage?' has-receipt':'')+'" data-receipt-tx="'+t.id+'" title="'+(t.receiptImage?"View receipt":"Attach receipt")+'">'+RECEIPT_SVG+'</button>'
+        +   '<button type="button" data-edit-tx="'+t.id+'" title="Edit (change the type to move it back to income or spending)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+        +   '<button type="button" data-del-tx="'+t.id+'" title="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v13a1 1 0 01-1 1H8a1 1 0 01-1-1V7h10z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>'
+        + '</div></td>'
+        + '</tr>';
+    }).join("");
+
+    body.querySelectorAll("[data-edit-tx]").forEach(function(b){
+      b.addEventListener("click", function(){ openTxModal(b.getAttribute("data-edit-tx")); });
+    });
+    body.querySelectorAll("[data-receipt-tx]").forEach(function(b){
+      b.addEventListener("click", function(){ openReceiptModal(b.getAttribute("data-receipt-tx")); });
     });
     body.querySelectorAll("[data-del-tx]").forEach(function(b){
       b.addEventListener("click", function(){
@@ -2510,6 +2696,7 @@
 
   /* ---------------- transaction modal ---------------- */
   var txType = "expense";
+  var txTransferDir = "out";
   function openTxModal(id){
     var backdrop = document.getElementById("txModalBackdrop");
     var form = document.getElementById("txForm");
@@ -2519,6 +2706,9 @@
     var existing = id ? state.transactions.find(function(t){ return t.id===id; }) : null;
 
     txType = existing ? existing.type : "expense";
+    // Which way a transfer goes if the person switches this transaction to the Transfer type:
+    // an existing income row was money coming in, anything else money going out.
+    txTransferDir = existing ? (existing.type==="transfer" ? transferDirOf(existing) : (existing.type==="income" ? "in" : "out")) : "out";
     setTxType(txType);
 
     document.getElementById("txModalTitle").textContent = existing ? "Edit transaction" : "Add transaction";
@@ -2532,6 +2722,7 @@
     populateCategoryOptions();
     if (existing){
       if (existing.type==="savings") document.getElementById("txCategory").value = existing.goalId || "general";
+      else if (existing.type==="transfer") document.getElementById("txCategory").value = transferDirOf(existing);
       else document.getElementById("txCategory").value = existing.category || "";
     }
 
@@ -2545,7 +2736,10 @@
     document.querySelectorAll("#txTypeSeg button").forEach(function(b){
       b.classList.toggle("active", b.getAttribute("data-type")===t);
     });
-    document.getElementById("txCategoryLabel").textContent = t==="savings" ? "Savings goal" : "Category";
+    document.getElementById("txCategoryLabel").textContent = t==="savings" ? "Savings goal" : (t==="transfer" ? "Direction" : "Category");
+    // Exclude / Fixed-cost don't apply to a transfer — it's already left out of everything.
+    document.getElementById("txExcludedField").style.display = t==="transfer" ? "none" : "";
+    document.getElementById("txFixedField").style.display = t==="transfer" ? "none" : "";
     populateCategoryOptions();
   }
   function categoryOptionsFor(type, selected){
@@ -2554,6 +2748,9 @@
       list = sortByLabel(state.categories.filter(function(c){ return (c.type||"expense")==="expense"; })).map(function(c){ return { value:c.key, label:c.label }; });
     } else if (type==="income"){
       list = sortByLabel(state.categories.filter(function(c){ return c.type==="income"; })).map(function(c){ return { value:c.key, label:c.label }; });
+    } else if (type==="transfer"){
+      list = [{ value:"out", label:"Money going out" }, { value:"in", label:"Money coming in" }];
+      if (selected === undefined) selected = txTransferDir;
     } else {
       list = [{ value:"general", label:"General savings" }];
       state.goals.forEach(function(g){ list.push({ value:g.id, label:g.name }); });
@@ -2584,6 +2781,7 @@
     var tx = { type: txType, amount: amount, date: date, note: note, excluded: excluded, fixedCost: fixedCost };
     if (txType==="expense") tx.category = catVal;
     else if (txType==="income") tx.category = catVal;
+    else if (txType==="transfer"){ tx.transferDir = catVal==="in" ? "in" : "out"; tx.excluded = false; tx.fixedCost = false; }
     else tx.goalId = catVal;
 
     if (id){ updateTransaction(id, tx); toast("Transaction updated"); }
@@ -2669,8 +2867,9 @@
   }
 
   var CATEGORY_GUESS_RULES = [
+    { re:/petrol|\bfuel\b|diesel/i, key:"transport" }, // a supermarket's petrol station is transport, not groceries
     { re:/tesco|sainsbury|asda|aldi|lidl|waitrose|morrison|co-?op|grocer|supermarket/i, key:"groceries" },
-    { re:/uber(?!\s*eats)|lyft|\btfl\b|transport|train|rail|\bbus\b|taxi|fuel|petrol|parking/i, key:"transport" },
+    { re:/uber(?!\s*eats)|lyft|\btfl\b|transport|\btrains?\b|\brail\b|\bbus\b|taxi|fuel|petrol|parking/i, key:"transport" },
     { re:/netflix|spotify|disney|prime video|cinema|steam|xbox|playstation|apple\.com\/bill/i, key:"entertainment" },
     { re:/\brent\b|mortgage|landlord/i, key:"housing" },
     { re:/electric|\bgas\b|water\s?co|council tax|broadband|phone bill|\butilit/i, key:"utilities" },
@@ -2752,11 +2951,25 @@
   // common case of re-importing a statement you've already brought in, or two statements
   // whose date ranges overlap. It's a heuristic, not a guarantee, so it's surfaced as a
   // flag the person can override per-row rather than a silent skip.
-  function findDuplicateMatch(type, date, amount){
+  function findDuplicateMatch(type, date, amount, dir){
     var amt = Math.abs(Number(amount)||0);
     return state.transactions.find(function(t){
-      return t.type===type && t.date===date && Math.abs(Math.abs(Number(t.amount)||0) - amt) < 0.005;
+      if (t.type!==type || t.date!==date || Math.abs(Math.abs(Number(t.amount)||0) - amt) >= 0.005) return false;
+      // The same transfer shows up on BOTH accounts' statements (out of one, in to the other),
+      // so for transfers only a match going the same way counts as a duplicate.
+      return type!=="transfer" || transferDirOf(t)===(dir==="in" ? "in" : "out");
     }) || null;
+  }
+
+  // Pre-sets a statement row to the Transfer type when it looks like money moved between your
+  // own accounts: the description says "transfer" (or similar), or matches one you've already
+  // filed as a transfer before. Only ever a starting suggestion — every row stays editable.
+  var STMT_TRANSFER_HINTS = /\b(transfer|tfr|trf|xfer)\b|\bown account\b|\binternal\b/i;
+  function looksLikeTransfer(note){
+    if (STMT_TRANSFER_HINTS.test(note||"")) return true;
+    var key = stmtMerchantKey(note);
+    if (!key) return false;
+    return state.transactions.some(function(t){ return t.type==="transfer" && stmtMerchantKey(t.note)===key; });
   }
 
   // Undo for the most recent statement import: not part of `state` (not saved,
@@ -2865,10 +3078,13 @@
         return;
       }
       importCandidates = parsed.map(function(c, i){
-        var learned = (c.type === "expense" || c.type === "income") ? guessFromHistory(c.note, c.type) : null;
-        var category = learned || (c.type === "expense" ? guessCategoryKey(c.note) : (c.type === "income" ? guessIncomeCategory(c.note) : "general"));
-        var dup = findDuplicateMatch(c.type, c.date, c.amount);
-        return { localId: "imp-" + i, date: c.date, note: c.note, amount: c.amount, type: c.type, category: category, duplicate: !!dup, duplicateNote: dup ? (dup.note || "") : "" };
+        var dir = c.type === "income" ? "in" : "out";
+        var isXfer = (c.type === "expense" || c.type === "income") && (c.ownName || looksLikeTransfer(c.note));
+        var type = isXfer ? "transfer" : c.type;
+        var learned = (type === "expense" || type === "income") ? guessFromHistory(c.note, type) : null;
+        var category = isXfer ? dir : (learned || (type === "expense" ? guessCategoryKey(c.note) : (type === "income" ? guessIncomeCategory(c.note) : "general")));
+        var dup = findDuplicateMatch(type, c.date, c.amount, dir);
+        return { localId: "imp-" + i, date: c.date, note: c.note, amount: c.amount, type: type, dir: dir, category: category, duplicate: !!dup, duplicateNote: dup ? (dup.note || "") : "" };
       });
       renderImportReview();
     }).catch(function(err){
@@ -2878,7 +3094,7 @@
   }
 
   function importRowHtml(c){
-    var typeOpts = ["income","expense","savings"].map(function(t){
+    var typeOpts = ["income","expense","savings","transfer"].map(function(t){
       return '<option value="'+t+'"'+(t===c.type?' selected':'')+'>'+t.charAt(0).toUpperCase()+t.slice(1)+'</option>';
     }).join("");
     var catOpts = categoryOptionsFor(c.type, c.category).join("");
@@ -2887,14 +3103,14 @@
       : "";
     var badge = c.duplicate ? '<span class="import-dup-badge" title="'+escapeHtml(dupTitle)+'">⚠</span>' : "";
     var rowClasses = "import-row" + (c.duplicate ? " import-row-duplicate row-excluded" : "");
-    return '<tr class="'+rowClasses+'" data-id="'+c.localId+'">'
+    return '<tr class="'+rowClasses+'" data-id="'+c.localId+'" data-dir="'+(c.dir==="in"?"in":"out")+'">'
       + '<td class="col-check">'+badge+'<input type="checkbox" class="imp-include"'+(c.duplicate?'':' checked')+'></td>'
       + '<td class="col-date"><input type="date" class="imp-date" value="'+c.date+'"></td>'
       + '<td class="col-type"><select class="imp-type">'+typeOpts+'</select></td>'
       + '<td><input type="text" class="imp-note" value="'+escapeHtml(c.note)+'"></td>'
       + '<td class="col-amount"><input type="number" class="imp-amount" min="0" step="0.01" value="'+c.amount+'"></td>'
       + '<td class="imp-cat-cell"><select class="imp-category">'+catOpts+'</select></td>'
-      + '<td style="text-align:center;"><input type="checkbox" class="imp-exclude" title="Exclude from overview &amp; graphs"></td>'
+      + '<td style="text-align:center;"><input type="checkbox" class="imp-exclude" title="Exclude from overview &amp; graphs"'+(c.type==="transfer"?' disabled':'')+'></td>'
       + '</tr>';
   }
   function renderImportReview(){
@@ -2902,7 +3118,7 @@
     var dupNote = dupCount
       ? ' <b>' + dupCount + '</b> look' + (dupCount===1?'s':'') + ' like ' + (dupCount===1?'a duplicate':'duplicates') + ' of something you already have (marked ⚠ and left unticked below) — tick one to include it anyway.'
       : "";
-    var html = '<div class="import-summary">Found <b>' + importCandidates.length + '</b> transaction' + (importCandidates.length===1?'':'s') + '. Check the dates, amounts and types below — automatic reading isn\'t perfect — then choose a category for each before adding. Tick "Excl." on any you want left out of your overview stats and graphs (e.g. a transfer between your own accounts) — saves hunting for it in the transactions list afterwards.' + dupNote + '</div>'
+    var html = '<div class="import-summary">Found <b>' + importCandidates.length + '</b> transaction' + (importCandidates.length===1?'':'s') + '. Check the dates, amounts and types below — automatic reading isn\'t perfect — then choose a category for each before adding. Money moved between your own accounts should be set to the <b>Transfer</b> type — it goes in the Internal transfers section and isn\'t counted as income or spending (rows that look like transfers are pre-set for you). Tick "Excl." to leave anything else out of your overview stats and graphs.' + dupNote + '</div>'
       + '<div class="import-table-wrap"><table class="import-table"><thead><tr>'
       + '<th class="col-check"><input type="checkbox" id="impSelectAll"'+(dupCount?'':' checked')+'></th>'
       + '<th class="col-date">Date</th><th class="col-type">Type</th><th>Description</th><th class="col-amount">Amount</th><th>Category</th>'
@@ -2931,7 +3147,10 @@
     document.querySelectorAll(".imp-type").forEach(function(sel){
       sel.addEventListener("change", function(){
         var row = sel.closest("tr");
-        row.querySelector(".imp-cat-cell").innerHTML = '<select class="imp-category">' + categoryOptionsFor(sel.value).join("") + '</select>';
+        row.querySelector(".imp-cat-cell").innerHTML = '<select class="imp-category">' + categoryOptionsFor(sel.value, sel.value==="transfer" ? row.getAttribute("data-dir") : undefined).join("") + '</select>';
+        var ex = row.querySelector(".imp-exclude");
+        ex.disabled = sel.value==="transfer";
+        if (ex.disabled) ex.checked = false;
       });
     });
 
@@ -2950,15 +3169,17 @@
       var note = row.querySelector(".imp-note").value.trim();
       var amount = parseFloat(row.querySelector(".imp-amount").value) || 0;
       var catVal = row.querySelector(".imp-category").value;
-      var excluded = row.querySelector(".imp-exclude").checked;
+      var excluded = type !== "transfer" && row.querySelector(".imp-exclude").checked;
       if (!date || amount <= 0) return;
       // Re-check for duplicates against the CURRENT field values, not the original parsed
       // ones — the person may have corrected a date or amount since the row was flagged
       // (or un-flagged something by editing it into a collision), so this is the version
       // of the check that actually reflects what's about to be added.
-      if (findDuplicateMatch(type, date, amount)) dupCount++;
+      if (findDuplicateMatch(type, date, amount, catVal)) dupCount++;
       var tx = { type: type, amount: amount, date: date, note: note, excluded: excluded };
-      if (type === "savings") tx.goalId = catVal; else tx.category = catVal;
+      if (type === "savings") tx.goalId = catVal;
+      else if (type === "transfer") tx.transferDir = catVal === "in" ? "in" : "out";
+      else tx.category = catVal;
       toAdd.push(tx);
     });
     if (!toAdd.length){ toast("No transactions selected"); return; }
@@ -3188,7 +3409,7 @@
     if (!t){ backdrop.classList.remove("show"); return; }
 
     var catLabel = (t.type==="expense" || t.type==="income") ? catByKey(t.category).label
-      : t.type==="savings" ? goalLabel(t.goalId) : (t.category||"—");
+      : t.type==="savings" ? goalLabel(t.goalId) : t.type==="transfer" ? "Internal transfer" : (t.category||"—");
     var d = new Date(t.date+"T00:00:00");
     var dateStr = d.toLocaleDateString(undefined, { day:"numeric", month:"short", year:"numeric" });
     document.getElementById("receiptTxSummary").innerHTML =
